@@ -36,11 +36,18 @@ Dependedncies: Requieres ODBC connection on host machine to both databases.
 
 
 
-Part 2 - createTAOFiles.py
+createTAOFiles.py
 
-         input='filename.csv' 
-         -s  
-         -a
-         -p
-         -t  Create the .CSV file for printiing student admit tickets
-         
+        usage: createTAOFiles.py [-h] [-s] [-p] [-a] [-t] input
+
+Process assessment registrations and create accounts.
+
+positional arguments:
+  input           The input CSV file name (e.g., filename.csv)
+
+options:
+  -h, --help      show this help message and exit
+  -s, --students  Create student accounts
+  -p, --proctors  Create proctor accounts
+  -a, --admins    Create admin accounts
+  -t, --tickets   Create ticket lists
