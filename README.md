@@ -18,6 +18,7 @@ Utility script to process and output school registration data from both ATS and 
                     
 Dependedncies: Requieres ODBC connection on host machine to both databases.  
          output:         Column headers and definitions --  
+         
                          CourseCode - Maximum of 5 alphanumeric characters.  
                          SchoolDBN - Two digits followed by a member of the set: {M, X, Q, K, R}, followed by three numeric digits.  
                          FirstName - Alpha String.  
