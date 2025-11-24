@@ -26,13 +26,12 @@ Dependedncies: Requieres ODBC connection on host machine to both databases.
                          AssignedSectionId - An integer between 0 and 99.  
                          LEPFlag - A single digit of "0" or "1"/   
                          GradeLevel - Should be an integer between 01-12, OK and PK are technically acceptable but will be flagged.   
-                         CreatedDate -   
-                         UpdatedDate -   
+                         CreatedDate - Date/Time in the format: yyyy-mm-dd hh:mm:ss.ssssss
+                         UpdatedDate - Blank or   
                          SchoolYear - A string with the format "20yy", where yy are the 2 digits of the Fall year of the school year.  
                          TermId - A single member of the set {1, 2, 3}.  
-                         GUID -    
-                         StudentDOEEmail - ALphanumeric string appended with "@nycstudents.net"  
-       
+                         GUID - A series of hexdecimal digits in the form: "dddddddd-dddd-dddd-dddd-dddddddddddd".  
+                         StudentDOEEmail - Alphanumeric string appended with "@nycstudents.net"  
 
 Part 2 - createTAOFiles.py
 
