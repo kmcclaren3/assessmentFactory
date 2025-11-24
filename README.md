@@ -46,8 +46,8 @@ positional arguments:
   input           The input CSV file name (e.g., filename.csv)
 
 options:  
-  -h, --help               Show this help message and exit.  
-  -s, --students           Create student accounts.  
-  -p, --proctors           Create proctor accounts.  
-  -a, --admins             Create admin accounts.  
-  -t, --tickets            Create ticket lists.  
+           -h, --help               Show this help message and exit.  
+           -s, --students           Create student accounts.  
+           -p, --proctors           Create proctor accounts.  
+           -a, --admins             Create admin accounts.  
+           -t, --tickets            Create ticket lists.  
