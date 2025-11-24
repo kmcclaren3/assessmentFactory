@@ -45,7 +45,7 @@ Process assessment registrations and create accounts.
 positional arguments:
   input           The input CSV file name (e.g., filename.csv)
 
-options:
+options:  
   -h, --help      Show this help message and exit.  
   -s, --students  Create student accounts.  
   -p, --proctors  Create proctor accounts.  
