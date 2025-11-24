@@ -1,5 +1,7 @@
-The purpose of this repository it holds the code for the full lifecycle of an assessment administration.  
+The purpose of this repository it holds the code for the full lifecycle of an assessment administration.
+
 pullRegistrations.py  
+
 usage: pullRegistrations.py [-h] [-C] [-P] [--year YEAR] [--output OUTPUT] --testlist TESTLIST
 
 Utility script to process and output school registration data from both ATS and STARS.
