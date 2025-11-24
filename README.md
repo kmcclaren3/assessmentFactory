@@ -1,9 +1,8 @@
-The purpose of this repository it holds the code for the full lifecycle of an assessment administration. 
-Part 1 - pullRegistrations.py  
-
+The purpose of this repository it holds the code for the full lifecycle of an assessment administration.  
+pullRegistrations.py  
 usage: pullRegistrations.py [-h] [-C] [-P] [--year YEAR] [--output OUTPUT] --testlist TESTLIST
 
-Utility script to process and output school registration data.
+Utility script to process and output school registration data from both ATS and STARS.
 
          options:
                     -h, --help           show this help message and exit
@@ -16,6 +15,8 @@ Utility script to process and output school registration data.
                     --year YEAR          Specify the registration year (default: 2025).
                     --output OUTPUT      Name of merged output CSV file (default: registrations.csv).
                     --testlist TESTLIST  Path to a file containing a comma-separated list of exam codes.
+                    
+Dependedncies: Requieres ODBC connection on host machine to both databases. 
 
 Part 2 - createTAOFiles.py
 
