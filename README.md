@@ -34,6 +34,8 @@ Dependedncies: Requieres ODBC connection on host machine to both databases.
                   GUID - A series of hexdecimal digits in the form: "dddddddd-dddd-dddd-dddd-dddddddddddd".  
                   StudentDOEEmail - Alphanumeric string appended with "@nycstudents.net"  
 
+
+
 Part 2 - createTAOFiles.py
 
          input='filename.csv' 
