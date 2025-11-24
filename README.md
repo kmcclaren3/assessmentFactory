@@ -19,7 +19,7 @@ Utility script to process and output school registration data from both ATS and 
 Dependedncies: Requieres ODBC connection on host machine to both databases.  
          registrations.csv:         Column headers and definitions --  
          
-                  CourseCode - Maximum of 5 alphanumeric characters.  
+                  CourseCode - Maximum of 5 alphanumeric characters.    
                   SchoolDBN - Two digits followed by a member of the set: {M, X, Q, K, R}, followed by three numeric digits.  
                   FirstName - Alpha String.  
                   LastName - Alpha string.  
@@ -46,8 +46,8 @@ positional arguments:
   input           The input CSV file name (e.g., filename.csv)
 
 options:
-  -h, --help      show this help message and exit
-  -s, --students  Create student accounts
-  -p, --proctors  Create proctor accounts
-  -a, --admins    Create admin accounts
-  -t, --tickets   Create ticket lists
+  -h, --help      Show this help message and exit.  
+  -s, --students  Create student accounts.  
+  -p, --proctors  Create proctor accounts.  
+  -a, --admins    Create admin accounts.  
+  -t, --tickets   Create ticket lists.  
