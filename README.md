@@ -42,14 +42,14 @@ createTAOFiles.py
 
         usage: createTAOFiles.py [-h] [-s] [-p] [-a] [-t] input
 
-Process assessment registrations and create accounts.
+Process assessment registrations and create TAO account files.
 
 positional arguments:
   input           The input CSV file name (e.g., filename.csv)
 
          options:  
                     -h, --help               Show this help message and exit.  
-                    -s, --students           Create student accounts.  
-                    -p, --proctors           Create proctor accounts.  
-                    -a, --admins             Create admin accounts.  
-                    -t, --tickets            Create ticket lists.  
+                    -s, --students           Create TAO student account file.  
+                    -p, --proctors           Create TAO proctor account file.  
+                    -a, --admins             Create TAO admin account file.  
+                    -t, --tickets            Create TAO test ticket lists.  
