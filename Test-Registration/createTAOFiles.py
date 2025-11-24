@@ -3,6 +3,7 @@ import pandas as pd
 import re
 import os
 import sys
+from datetime import datetime
 
 # --- Validation Functions ---
 
@@ -68,6 +69,12 @@ def is_valid_term_id(term_id: str) -> bool:
 
 # --- Account Creation Stubs ---
 
+def create_groups(student_data):
+    """Stub for creating group accounts."""
+    print(f"Processing group account creation.")
+    # Add account creation logic here
+    pass
+
 def create_student_accounts(student_data):
     """Stub for creating student accounts."""
     print(f"Processing student account creation for {len(student_data)} valid records.")
@@ -76,7 +83,7 @@ def create_student_accounts(student_data):
 
 def create_proctor_accounts():
     """Stub for creating proctor accounts."""
-    print("Processing proctor account creation.")
+    print("Processing proctor account creation. ")
     # Add account creation logic here
     pass
 
@@ -86,11 +93,18 @@ def create_admin_accounts():
     # Add account creation logic here
     pass
 
+def create_tickets():
+    """Stub for creating test tickets."""
+    print("Processing test ticket creation.")
+    # Add ticket creation logic here
+    pass
+
 # --- Main Processing Logic ---
 
 def process_registrations(filename, create_students: bool, create_proctors: bool, create_admins: bool, create_tickets: bool):
     """
     Loads and validates the CSV file, then calls account creation functions based on flags.
+    Generates a timestamped 'rejects.csv' file for all rejected records.
     """
     if not os.path.exists(filename):
         print(f"Error: The file '{filename}' was not found.")
@@ -114,6 +128,7 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
         sys.exit(1)
 
     valid_records = []
+    rejected_records = []
     invalid_rows_count = 0
 
     for index, row in df.iterrows():
@@ -140,17 +155,39 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
             valid_records.append(row)
         else:
             invalid_rows_count += 1
+            rejected_records.append(row)
             print(f"Ignoring row {index + 1} due to invalid entries.")
+
+#    print(f"\nCSV processing complete. Total rows: {len(df)}, Valid rows: {len(valid_records)}, Invalid rows: {invalid_rows_count}")
+
+# --- Rejects File Creation Logic ---
+    if rejected_records:
+        now = datetime.now()
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        rejects_filename = f"rejects_{timestamp}.csv"
+        # Convert the list of rejected records (which are Pandas Series) back into a DataFrame
+        # using the same columns as the original file
+        rejected_df = pd.DataFrame(rejected_records, columns=df.columns)
+
+        # Write the DataFrame to a CSV file, including the header
+        try:
+            rejected_df.to_csv(rejects_filename, index=False)
+            print(f"\nCreated rejects file: **{rejects_filename}** with {len(rejected_records)} rejected records.")
+        except Exception as e:
+            print(f"\nError writing rejects file: {e}")
+            
+    # --- End Rejects File Creation Logic ---
 
     print(f"\nCSV processing complete. Total rows: {len(df)}, Valid rows: {len(valid_records)}, Invalid rows: {invalid_rows_count}")
 
     if valid_records:
+        create_groups(valid_records)
         if create_students:
             create_student_accounts(valid_records)
         if create_proctors:
-            create_proctor_accounts()
+            create_proctor_accounts(valid_records)
         if create_admins:
-            create_admin_accounts()
+            create_admin_accounts(valid_records)
         if create_tickets:
             create_tickets()
     else:
@@ -160,14 +197,14 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
 # --- Command Line Argument Parsing ---
 
 def main():
-    parser = argparse.ArgumentParser(description="Process assessment registrations and create accounts.")
+    parser = argparse.ArgumentParser(description="Process assessment registrations and create TAO account files.")
     
     parser.add_argument('input', type=str, help="The input CSV file name (e.g., filename.csv)")
     
-    parser.add_argument('-s', '--students', action='store_true', help="Create student accounts")
-    parser.add_argument('-p', '--proctors', action='store_true', help="Create proctor accounts")
-    parser.add_argument('-a', '--admins', action='store_true', help="Create admin accounts")
-    parser.add_argument('-t', '--tickets', action='store_true', help="Create ticket lists")
+    parser.add_argument('-s', '--students', action='store_true', help="Create TAO student account file")
+    parser.add_argument('-p', '--proctors', action='store_true', help="Create TAO proctor account file")
+    parser.add_argument('-a', '--admins', action='store_true', help="Create TAO admin account file")
+    parser.add_argument('-t', '--tickets', action='store_true', help="Create test ticket lists")
     
     args = parser.parse_args()
 
