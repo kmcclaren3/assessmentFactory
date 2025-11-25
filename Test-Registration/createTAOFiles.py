@@ -65,33 +65,326 @@ def is_valid_term_id(term_id: str) -> bool:
         return False
     return term_id in ['1', '2', '3']
 
-# (Stubs for other column validations as needed)
+# Helper functions
 
-# --- Account Creation Stubs ---
+def generate_password(prefix, postfix, length):
+    """
+    Generates a password: prefix + random_alphanumeric + postfix.
+    The random part excludes 'l', '1', 'o', '0' to avoid confusion.
+    """
+    # Define allowed characters: alphanumeric excluding confusing ones
+    allowed_chars = [
+        c for c in string.ascii_letters + string.digits 
+        if c not in ['l', '1', 'o', '0']
+    ]
+    
+    random_part = ''.join(random.choice(allowed_chars) for _ in range(length))
+    return f"{prefix}{random_part}{postfix}"
+
+
+# --- Account Creation ---
 
 def create_groups(student_data):
-    """Stub for creating group accounts."""
-    print(f"Processing group account creation.")
-    # Add account creation logic here
-    pass
+    """
+    Creates a CSV file for groups based on distinct combinations of CourseCode, 
+    SchoolDBN, and AssignedSectionID.
+    """
+    print(f"Processing group account creation...")
+
+    if not student_data:
+        print("No valid student data available to create groups.")
+        return 0
+
+    # Convert the list of valid records (Series) back to a DataFrame
+    df = pd.DataFrame(student_data)
+
+    # Ensure necessary columns are strings to prevent concatenation errors
+    # (e.g., if AssignedSectionId was read as int)
+    df['CourseCode'] = df['CourseCode'].astype(str)
+    df['SchoolDBN'] = df['SchoolDBN'].astype(str)
+    df['AssignedSectionId'] = df['AssignedSectionId'].astype(str)
+    df['SchoolYear'] = df['SchoolYear'].astype(str)
+
+    # 1. Generate Group Name
+    # Logic: <CourseCode><last 2 digits of SchoolYear>@<DBN><AssignedSectionId>
+    
+    # Get last 2 digits of school year
+    school_year_suffix = df['SchoolYear'].str[-2:]
+    
+    df['group_name'] = (
+        df['CourseCode'] + 
+        school_year_suffix + 
+        "@" + 
+        df['SchoolDBN'] + 
+        df['AssignedSectionId']
+    )
+
+    # 2. Extract unique groups
+    # We only need one entry per distinct group name
+    groups_output = df[['group_name']].drop_duplicates().copy()
+
+    # 3. Add static columns
+    # "group_description", "group_active", "group_organizationId"
+    groups_output['group_description'] = ""
+    groups_output['group_active'] = "TRUE"
+    groups_output['group_organizationId'] = "Root"
+
+    # 4. Reorder columns to match requirements
+    required_columns = ["group_name", "group_description", "group_active", "group_organizationId"]
+    groups_output = groups_output[required_columns]
+
+    # 5. Write to file
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    filename = f"groups_{timestamp}.csv"
+
+    try:
+        groups_output.to_csv(filename, index=False)
+        record_count = len(groups_output)
+        print(f"Created group file: **{filename}** with {record_count} unique groups.")
+        return record_count
+    except Exception as e:
+        print(f"Error writing group file: {e}")
+        return 0
 
 def create_student_accounts(student_data):
-    """Stub for creating student accounts."""
+    """
+    Creates a CSV file for student accounts (testtakers).
+    """
     print(f"Processing student account creation for {len(student_data)} valid records.")
-    # Add account creation logic here
-    pass
+    
+    if not student_data:
+        print("No valid student data available to create student accounts.")
+        return 0
 
-def create_proctor_accounts():
-    """Stub for creating proctor accounts."""
-    print("Processing proctor account creation. ")
-    # Add account creation logic here
-    pass
+    # Convert to DataFrame
+    df = pd.DataFrame(student_data)
+    
+    # Ensure necessary columns are strings
+    df['CourseCode'] = df['CourseCode'].astype(str)
+    df['SchoolDBN'] = df['SchoolDBN'].astype(str)
+    df['AssignedSectionId'] = df['AssignedSectionId'].astype(str)
+    df['SchoolYear'] = df['SchoolYear'].astype(str)
+    df['FirstName'] = df['FirstName'].astype(str)
+    df['LastName'] = df['LastName'].astype(str)
+    df['StudentDOEEmail'] = df['StudentDOEEmail'].astype(str)
 
-def create_admin_accounts():
-    """Stub for creating admin accounts."""
-    print("Processing admin account creation.")
-    # Add account creation logic here
-    pass
+    # 1. Generate Group Name (Same logic as create_groups)
+    school_year_suffix = df['SchoolYear'].str[-2:]
+    
+    df['group_name'] = (
+        df['CourseCode'] + 
+        school_year_suffix + 
+        "@" + 
+        df['SchoolDBN'] + 
+        df['AssignedSectionId']
+    )
+
+    # 2. Construct Student Fields
+    
+    # user_username: StudentDOEEmail
+    df['user_username'] = df['StudentDOEEmail']
+    
+    # user_name: First and last names concatenated
+    df['user_name'] = df['FirstName'] + df['LastName']
+    
+    # user_password: Prefix (FirstInitial + LastInitial) + 6 random chars + No Postfix
+    def make_student_password(row):
+        # Get first initials, defaulting to 'X' if empty
+        f_init = row['FirstName'][0].upper() if row['FirstName'] else 'X'
+        l_init = row['LastName'][0].upper() if row['LastName'] else 'X'
+        prefix = f"{f_init}{l_init}"
+        return generate_password(prefix, "", 6)
+
+    df['user_password'] = df.apply(make_student_password, axis=1)
+
+    # user_email: Blank
+    df['user_email'] = ""
+    
+    # user_language: "en-US"
+    df['user_language'] = "en-US"
+    
+    # user_active: "TRUE"
+    df['user_active'] = "TRUE"
+    
+    # group_role: "TestTaker"
+    df['group_role'] = "TestTaker"
+    
+    # user_organizationId: DBN
+    df['user_organizationId'] = df['SchoolDBN']
+
+    # 3. Reorder columns
+    required_columns = [
+        "user_username", "user_name", "user_password", "user_email", 
+        "user_language", "user_active", "group_role", "group_name", 
+        "user_organizationId"
+    ]
+    
+    students_output = df[required_columns].copy()
+
+    # 4. Write to file
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    filename = f"testtakers_{timestamp}.csv"
+
+    try:
+        students_output.to_csv(filename, index=False)
+        record_count = len(students_output)
+        print(f"Created student file: **{filename}** with {record_count} student accounts.")
+        return record_count
+    except Exception as e:
+        print(f"Error writing student file: {e}")
+        return 0
+
+
+def create_proctor_accounts(student_data):
+    """
+    Creates a CSV file for proctor accounts.
+    One proctor for each unique group.
+    """
+    print("Processing proctor account creation...")
+
+    if not student_data:
+        print("No valid student data available to create proctors.")
+        return 0
+
+    # Reuse DataFrame logic from create_groups to determine unique groups
+    df = pd.DataFrame(student_data)
+    
+    df['CourseCode'] = df['CourseCode'].astype(str)
+    df['SchoolDBN'] = df['SchoolDBN'].astype(str)
+    df['AssignedSectionId'] = df['AssignedSectionId'].astype(str)
+    df['SchoolYear'] = df['SchoolYear'].astype(str)
+
+    school_year_suffix = df['SchoolYear'].str[-2:]
+    
+    df['group_name'] = (
+        df['CourseCode'] + 
+        school_year_suffix + 
+        "@" + 
+        df['SchoolDBN'] + "-" +
+        df['AssignedSectionId']
+    )
+
+    # Extract unique groups
+    proctors_output = df[['group_name']].drop_duplicates().copy()
+
+    # Define Proctor Logic
+    # user_username and user_name: group_name + "PCT"
+    proctors_output['user_username'] = proctors_output['group_name'] + "PCT"
+    proctors_output['user_name'] = proctors_output['group_name'] + "PCT"
+
+    proctors_output['user_password'] = proctors_output.apply(
+        lambda x: generate_password("", "PCT", 6), axis=1
+    )
+
+    # Static fields
+    proctors_output['user_email'] = ""
+    proctors_output['user_language'] = "en-US"
+    proctors_output['user_active'] = "TRUE"
+    proctors_output['group_name'] = proctors_output['group_name'] + "PCT"
+    proctors_output['user_organizationId'] = df['SchoolDBN'] 
+
+    # Reorder columns
+    required_columns = [
+        "user_username", "user_name", "user_password", "user_email", 
+        "user_language", "user_active", "group_role", "group_name", 
+        "user_organizationId"
+    ]
+    
+    proctors_output = proctors_output[required_columns]
+
+    # Write to file
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    filename = f"proctors_{timestamp}.csv"
+
+    try:
+        proctors_output.to_csv(filename, index=False)
+        record_count = len(proctors_output)
+        print(f"Created proctor file: **{filename}** with {record_count} unique proctor accounts.")
+        return record_count
+    except Exception as e:
+        print(f"Error writing proctor file: {e}")
+        return 0
+
+
+def create_admin_accounts(student_data, num_admins=2):
+    """
+    Creates a CSV file for admin accounts.
+    Creates 'num_admins' (default 2) for each distinct SchoolDBN.
+    """
+    print(f"Processing admin account creation for {num_admins} admins per DBN...")
+    
+    if not student_data:
+        print("No valid student data available to create admins.")
+        return 0
+
+    # Convert to DataFrame
+    df = pd.DataFrame(student_data)
+    
+    # Ensure columns are strings
+    df['SchoolDBN'] = df['SchoolDBN'].astype(str)
+    df['SchoolYear'] = df['SchoolYear'].astype(str)
+    
+    # Get distinct combinations of DBN and SchoolYear
+    # We need SchoolYear to determine the suffix (YY) for the username
+    unique_orgs = df[['SchoolDBN', 'SchoolYear']].drop_duplicates()
+    
+    admin_records = []
+    
+    for _, row in unique_orgs.iterrows():
+        dbn = row['SchoolDBN']
+        year = row['SchoolYear']
+        # Extract last 2 digits of the year
+        year_suffix = year[-2:]
+        
+        for i in range(1, num_admins + 1):
+            # Username format: ADM+<Admin number>-<last 2 digits of year>@<DBN>
+            # Example: ADM1-25@02M123
+            username = f"ADM{i}-{year_suffix}@{dbn}"
+            
+            admin_records.append({
+                "user_username": username,
+                "user_name": username,
+                # Using ADM postfix for password consistency
+                "user_password": generate_password("", "ADM", 6), 
+                "user_email": "",
+                "user_language": "en-US",
+                "user_active": "TRUE",
+                "group_role": "ADMIN",
+                "group_name": "", # Admins are typically organization-level, so group is blank
+                "user_organizationId": dbn
+            })
+            
+    admins_output = pd.DataFrame(admin_records)
+    
+    # Reorder columns
+    required_columns = [
+        "user_username", "user_name", "user_password", "user_email", 
+        "user_language", "user_active", "group_role", "group_name", 
+        "user_organizationId"
+    ]
+    
+    # Write to file
+    if not admins_output.empty:
+        admins_output = admins_output[required_columns]
+        
+        now = datetime.now()
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        filename = f"admins_{timestamp}.csv"
+        
+        try:
+            admins_output.to_csv(filename, index=False)
+            record_count = len(admins_output)
+            print(f"Created admin file: **{filename}** with {record_count} admin accounts.")
+            return record_count
+        except Exception as e:
+            print(f"Error writing admin file: {e}")
+            return 0
+    else:
+        print("No admin accounts generated.")
+        return 0
 
 def create_tickets():
     """Stub for creating test tickets."""
