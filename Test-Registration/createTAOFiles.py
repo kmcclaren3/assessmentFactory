@@ -490,7 +490,8 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
 # --- Command Line Argument Parsing ---
 
 def main():
-    parser = argparse.ArgumentParser(description="Process assessment registrations and create TAO account files.")
+    parser = argparse.ArgumentParser(description="Process assessment registrations and create TAO account files.\nGroup file created automatically.",
+                                     formatter_class=argparse.RawTextHelpFormatter)
     
     parser.add_argument('input', type=str, help="The input CSV file name (e.g., filename.csv)")
     
