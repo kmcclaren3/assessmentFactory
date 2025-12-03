@@ -3,6 +3,8 @@ import pandas as pd
 import re
 import os
 import sys
+import random
+import string
 from datetime import datetime
 
 # --- Validation Functions ---
@@ -24,7 +26,7 @@ def is_valid_school_dbn(dbn):
     if not isinstance(dbn, str):
         return False
     pattern = r'^\d{2}[MXQKR]\d{3}$'
-    return bool(re.match(pattern, value))
+    return bool(re.match(pattern, dbn))
     
 
 def is_valid_student_id(student_id):
@@ -55,17 +57,21 @@ def is_valid_schoolyear(schoolyear):
     """
     if not isinstance(schoolyear, (int, str)):
         return False
-    return len(schoolyear) >= 4 and schoolyear[:2] == '20' and schoolyear[-2:].isdigit()
+    # Check if it's a digit string and starts with '20'
+    s_year = str(schoolyear)
+    return s_year.isdigit() and s_year.startswith('20')
 
-def is_valid_term_id(term_id: str) -> bool:
+def is_valid_term_id(term_id) -> bool:
     """
     Validate the term_ID: an integer 1,2, or 3.
     """
     if not isinstance(term_id, (int, str)):
         return False
-    return term_id in ['1', '2', '3']
+    # Convert to string to ensure consistent checking against ['1', '2', '3']
+    s_term_id = str(term_id)
+    return s_term_id in ['1', '2', '3']
 
-# Helper functions
+# --- Helper Functions ---
 
 def generate_password(prefix, postfix, length):
     """
@@ -81,85 +87,17 @@ def generate_password(prefix, postfix, length):
     random_part = ''.join(random.choice(allowed_chars) for _ in range(length))
     return f"{prefix}{random_part}{postfix}"
 
-
-# --- Account Creation ---
-
-def create_groups(student_data):
+def prepare_enriched_dataframe(valid_records):
     """
-    Creates a CSV file for groups based on distinct combinations of CourseCode, 
-    SchoolDBN, and AssignedSectionID.
+    Converts valid records to a DataFrame and adds all calculated columns 
+    (Group Name, Username, Password, etc.) UP FRONT.
+    This ensures passwords are consistent across different output files.
     """
-    print(f"Processing group account creation...")
+    if not valid_records:
+        return pd.DataFrame()
 
-    if not student_data:
-        print("No valid student data available to create groups.")
-        return 0
+    df = pd.DataFrame(valid_records)
 
-    # Convert the list of valid records (Series) back to a DataFrame
-    df = pd.DataFrame(student_data)
-
-    # Ensure necessary columns are strings to prevent concatenation errors
-    # (e.g., if AssignedSectionId was read as int)
-    df['CourseCode'] = df['CourseCode'].astype(str)
-    df['SchoolDBN'] = df['SchoolDBN'].astype(str)
-    df['AssignedSectionId'] = df['AssignedSectionId'].astype(str)
-    df['SchoolYear'] = df['SchoolYear'].astype(str)
-
-    # 1. Generate Group Name
-    # Logic: <CourseCode><last 2 digits of SchoolYear>@<DBN><AssignedSectionId>
-    
-    # Get last 2 digits of school year
-    school_year_suffix = df['SchoolYear'].str[-2:]
-    
-    df['group_name'] = (
-        df['CourseCode'] + 
-        school_year_suffix + 
-        "@" + 
-        df['SchoolDBN'] + 
-        df['AssignedSectionId']
-    )
-
-    # 2. Extract unique groups
-    # We only need one entry per distinct group name
-    groups_output = df[['group_name']].drop_duplicates().copy()
-
-    # 3. Add static columns
-    # "group_description", "group_active", "group_organizationId"
-    groups_output['group_description'] = ""
-    groups_output['group_active'] = "TRUE"
-    groups_output['group_organizationId'] = "Root"
-
-    # 4. Reorder columns to match requirements
-    required_columns = ["group_name", "group_description", "group_active", "group_organizationId"]
-    groups_output = groups_output[required_columns]
-
-    # 5. Write to file
-    now = datetime.now()
-    timestamp = now.strftime("%Y%m%d_%H%M%S")
-    filename = f"groups_{timestamp}.csv"
-
-    try:
-        groups_output.to_csv(filename, index=False)
-        record_count = len(groups_output)
-        print(f"Created group file: **{filename}** with {record_count} unique groups.")
-        return record_count
-    except Exception as e:
-        print(f"Error writing group file: {e}")
-        return 0
-
-def create_student_accounts(student_data):
-    """
-    Creates a CSV file for student accounts (testtakers).
-    """
-    print(f"Processing student account creation for {len(student_data)} valid records.")
-    
-    if not student_data:
-        print("No valid student data available to create student accounts.")
-        return 0
-
-    # Convert to DataFrame
-    df = pd.DataFrame(student_data)
-    
     # Ensure necessary columns are strings
     df['CourseCode'] = df['CourseCode'].astype(str)
     df['SchoolDBN'] = df['SchoolDBN'].astype(str)
@@ -169,14 +107,15 @@ def create_student_accounts(student_data):
     df['LastName'] = df['LastName'].astype(str)
     df['StudentDOEEmail'] = df['StudentDOEEmail'].astype(str)
 
-    # 1. Generate Group Name (Same logic as create_groups)
+    # 1. Generate Group Name
+    # Logic: <CourseCode><last 2 digits of SchoolYear>@<DBN><AssignedSectionId>
     school_year_suffix = df['SchoolYear'].str[-2:]
     
     df['group_name'] = (
         df['CourseCode'] + 
         school_year_suffix + 
         "@" + 
-        df['SchoolDBN'] + 
+        df['SchoolDBN'] + "-" +
         df['AssignedSectionId']
     )
 
@@ -190,7 +129,6 @@ def create_student_accounts(student_data):
     
     # user_password: Prefix (FirstInitial + LastInitial) + 6 random chars + No Postfix
     def make_student_password(row):
-        # Get first initials, defaulting to 'X' if empty
         f_init = row['FirstName'][0].upper() if row['FirstName'] else 'X'
         l_init = row['LastName'][0].upper() if row['LastName'] else 'X'
         prefix = f"{f_init}{l_init}"
@@ -198,31 +136,78 @@ def create_student_accounts(student_data):
 
     df['user_password'] = df.apply(make_student_password, axis=1)
 
-    # user_email: Blank
+    # Common Static Fields
     df['user_email'] = ""
-    
-    # user_language: "en-US"
     df['user_language'] = "en-US"
-    
-    # user_active: "TRUE"
     df['user_active'] = "TRUE"
-    
-    # group_role: "TestTaker"
-    df['group_role'] = "TestTaker"
-    
-    # user_organizationId: DBN
-    df['user_organizationId'] = df['SchoolDBN']
+    df['group_role_student'] = "TestTaker"
+    df['group_role_proctor'] = "PROCTOR"
 
-    # 3. Reorder columns
+    return df
+
+# --- Account Creation Logic ---
+
+def create_groups(df):
+    """
+    Creates a CSV file for groups using the pre-calculated dataframe.
+    """
+    print(f"Processing group account creation...")
+
+    if df.empty:
+        print("No valid student data available to create groups.")
+        return 0
+
+    # Extract unique groups
+    groups_output = df[['group_name']].drop_duplicates().copy()
+
+    # Add static columns
+    groups_output['group_description'] = ""
+    groups_output['group_active'] = "TRUE"
+    groups_output['group_organizationId'] = "Root"
+
+    # Reorder
+    required_columns = ["group_name", "group_description", "group_active", "group_organizationId"]
+    groups_output = groups_output[required_columns]
+
+    # Write to file
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    filename = f"groups_{timestamp}.csv"
+
+    try:
+        groups_output.to_csv(filename, index=False)
+        record_count = len(groups_output)
+        print(f"Created group file: **{filename}** with {record_count} unique groups.")
+        return record_count
+    except Exception as e:
+        print(f"Error writing group file: {e}")
+        return 0
+
+def create_student_accounts(df):
+    """
+    Creates a CSV file for student accounts using the pre-calculated dataframe.
+    """
+    print(f"Processing student account creation for {len(df)} records.")
+    
+    if df.empty:
+        print("No valid student data available to create student accounts.")
+        return 0
+
+    # Map to output columns
+    students_output = df.copy()
+    students_output['group_role'] = students_output['group_role_student']
+    students_output['user_organizationId'] = students_output['SchoolDBN']
+
+    # Reorder columns
     required_columns = [
         "user_username", "user_name", "user_password", "user_email", 
         "user_language", "user_active", "group_role", "group_name", 
         "user_organizationId"
     ]
     
-    students_output = df[required_columns].copy()
+    students_output = students_output[required_columns]
 
-    # 4. Write to file
+    # Write to file
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     filename = f"testtakers_{timestamp}.csv"
@@ -236,55 +221,36 @@ def create_student_accounts(student_data):
         print(f"Error writing student file: {e}")
         return 0
 
-
-def create_proctor_accounts(student_data):
+def create_proctor_accounts(df):
     """
     Creates a CSV file for proctor accounts.
-    One proctor for each unique group.
     """
     print("Processing proctor account creation...")
 
-    if not student_data:
+    if df.empty:
         print("No valid student data available to create proctors.")
         return 0
 
-    # Reuse DataFrame logic from create_groups to determine unique groups
-    df = pd.DataFrame(student_data)
-    
-    df['CourseCode'] = df['CourseCode'].astype(str)
-    df['SchoolDBN'] = df['SchoolDBN'].astype(str)
-    df['AssignedSectionId'] = df['AssignedSectionId'].astype(str)
-    df['SchoolYear'] = df['SchoolYear'].astype(str)
+    # 1. Unique groups for proctors (logic differs slightly: proctor ID based on group)
+    proctors_output = df[['group_name', 'SchoolDBN', 'AssignedSectionId', 'CourseCode', 'SchoolYear']].drop_duplicates().copy()
 
-    school_year_suffix = df['SchoolYear'].str[-2:]
-    
-    df['group_name'] = (
-        df['CourseCode'] + 
-        school_year_suffix + 
-        "@" + 
-        df['SchoolDBN'] + "-" +
-        df['AssignedSectionId']
-    )
-
-    # Extract unique groups
-    proctors_output = df[['group_name']].drop_duplicates().copy()
-
-    # Define Proctor Logic
-    # user_username and user_name: group_name + "PCT"
+    # Generate Proctor fields
     proctors_output['user_username'] = proctors_output['group_name'] + "PCT"
     proctors_output['user_name'] = proctors_output['group_name'] + "PCT"
-
+    
+    # Generate unique passwords for proctors (these don't need to match student pw logic)
     proctors_output['user_password'] = proctors_output.apply(
         lambda x: generate_password("", "PCT", 6), axis=1
     )
-
-    # Static fields
+    
     proctors_output['user_email'] = ""
     proctors_output['user_language'] = "en-US"
     proctors_output['user_active'] = "TRUE"
-    proctors_output['group_name'] = proctors_output['group_name'] + "PCT"
-    proctors_output['user_organizationId'] = df['SchoolDBN'] 
-
+    proctors_output['group_role'] = "PROCTOR"
+    # Note: Proctor organization is ROOT as per previous requirement, or DBN? 
+    # Previous code had "ROOT" in create_proctor_accounts. Sticking to "ROOT".
+    proctors_output['user_organizationId'] = "ROOT" 
+    
     # Reorder columns
     required_columns = [
         "user_username", "user_name", "user_password", "user_email", 
@@ -308,27 +274,17 @@ def create_proctor_accounts(student_data):
         print(f"Error writing proctor file: {e}")
         return 0
 
-
-def create_admin_accounts(student_data, num_admins=2):
+def create_admin_accounts(df, num_admins=2):
     """
     Creates a CSV file for admin accounts.
-    Creates 'num_admins' (default 2) for each distinct SchoolDBN.
     """
     print(f"Processing admin account creation for {num_admins} admins per DBN...")
     
-    if not student_data:
+    if df.empty:
         print("No valid student data available to create admins.")
         return 0
 
-    # Convert to DataFrame
-    df = pd.DataFrame(student_data)
-    
-    # Ensure columns are strings
-    df['SchoolDBN'] = df['SchoolDBN'].astype(str)
-    df['SchoolYear'] = df['SchoolYear'].astype(str)
-    
     # Get distinct combinations of DBN and SchoolYear
-    # We need SchoolYear to determine the suffix (YY) for the username
     unique_orgs = df[['SchoolDBN', 'SchoolYear']].drop_duplicates()
     
     admin_records = []
@@ -336,38 +292,31 @@ def create_admin_accounts(student_data, num_admins=2):
     for _, row in unique_orgs.iterrows():
         dbn = row['SchoolDBN']
         year = row['SchoolYear']
-        # Extract last 2 digits of the year
         year_suffix = year[-2:]
         
         for i in range(1, num_admins + 1):
-            # Username format: ADM+<Admin number>-<last 2 digits of year>@<DBN>
-            # Example: ADM1-25@02M123
             username = f"ADM{i}-{year_suffix}@{dbn}"
             
             admin_records.append({
                 "user_username": username,
                 "user_name": username,
-                # Using ADM postfix for password consistency
                 "user_password": generate_password("", "ADM", 6), 
                 "user_email": "",
                 "user_language": "en-US",
                 "user_active": "TRUE",
                 "group_role": "ADMIN",
-                "group_name": "", # Admins are typically organization-level, so group is blank
-                "user_organizationId": dbn
+                "group_name": "", 
+                "user_organizationId": "ROOT"
             })
             
     admins_output = pd.DataFrame(admin_records)
     
-    # Reorder columns
-    required_columns = [
-        "user_username", "user_name", "user_password", "user_email", 
-        "user_language", "user_active", "group_role", "group_name", 
-        "user_organizationId"
-    ]
-    
-    # Write to file
     if not admins_output.empty:
+        required_columns = [
+            "user_username", "user_name", "user_password", "user_email", 
+            "user_language", "user_active", "group_role", "group_name", 
+            "user_organizationId"
+        ]
         admins_output = admins_output[required_columns]
         
         now = datetime.now()
@@ -386,25 +335,56 @@ def create_admin_accounts(student_data, num_admins=2):
         print("No admin accounts generated.")
         return 0
 
-def create_tickets():
-    """Stub for creating test tickets."""
-    print("Processing test ticket creation.")
-    # Add ticket creation logic here
-    pass
+def create_tickets(df):
+    """
+    Creates ticket files for each DBN.
+    Filename: <DBN>_tickets.csv
+    Headers: "Group Name", "StudentName", "Username", "Password"
+    """
+    print("Processing ticket creation...")
+
+    if df.empty:
+        print("No valid data available to create tickets.")
+        return
+
+    # Group the dataframe by SchoolDBN
+    grouped = df.groupby('SchoolDBN')
+
+    files_created = 0
+
+    for dbn, group_df in grouped:
+        # Select and Rename columns
+        # group_name -> "Group Name"
+        # user_name -> "StudentName"
+        # user_username -> "Username"
+        # user_password -> "Password"
+        
+        ticket_data = group_df[['group_name', 'user_name', 'user_username', 'user_password']].copy()
+        ticket_data.columns = ['Group Name', 'StudentName', 'Username', 'Password']
+        
+        filename = f"{dbn}_tickets.csv"
+        
+        try:
+            ticket_data.to_csv(filename, index=False)
+            files_created += 1
+        except Exception as e:
+            print(f"Error writing ticket file for {dbn}: {e}")
+
+    print(f"Created {files_created} ticket files (one per DBN).")
 
 # --- Main Processing Logic ---
 
-def process_registrations(filename, create_students: bool, create_proctors: bool, create_admins: bool, create_tickets: bool):
+def process_registrations(filename, create_students: bool, create_proctors: bool, create_admins: bool, create_tickets_bool: bool):
     """
-    Loads and validates the CSV file, then calls account creation functions based on flags.
-    Generates a timestamped 'rejects.csv' file for all rejected records.
+    Loads and validates the CSV file, then calls account creation functions.
     """
     if not os.path.exists(filename):
         print(f"Error: The file '{filename}' was not found.")
         sys.exit(1)
 
     try:
-        df = pd.read_csv(filename)
+        # Use low_memory=False to avoid mixed type warnings on large files
+        df_raw = pd.read_csv(filename, low_memory=False)
     except pd.errors.EmptyDataError:
         print(f"Error: The file '{filename}' is empty.")
         sys.exit(1)
@@ -415,8 +395,8 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
     required_cols = ['CourseCode', 'SchoolDBN', 'FirstName', 'LastName', 'StudentID', 'AssignedSectionId', 
                      'LEPFlag', 'GradeLevel', 'CreatedDate', 'UpdatedDate', 'SchoolYear', 'TermId', 'GUID', 
                      'StudentDOEEmail']
-    if not all(col in df.columns for col in required_cols):
-        missing_cols = [col for col in required_cols if col not in df.columns]
+    if not all(col in df_raw.columns for col in required_cols):
+        missing_cols = [col for col in required_cols if col not in df_raw.columns]
         print(f"Error: Missing required columns in CSV file: {missing_cols}")
         sys.exit(1)
 
@@ -424,8 +404,9 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
     rejected_records = []
     invalid_rows_count = 0
 
-    for index, row in df.iterrows():
+    for index, row in df_raw.iterrows():
         is_valid = True
+        
         if not is_valid_course_code(row['CourseCode']):
             print(f"Invalid entry in row {index + 1}: Invalid CourseCode '{row['CourseCode']}'")
             is_valid = False
@@ -441,9 +422,13 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
         if not is_valid_schoolyear(row['SchoolYear']):
             print(f"Invalid entry in row {index + 1}: Invalid School Year '{row['SchoolYear']}'")
             is_valid = False
-        if not is_valid_term_id(row['termID']):
-            print(f"Invalid entry in row {index + 1}: Invalid TermID '{row['TermID']}'")
+        # Note: Fixed case sensitivity for 'TermId' based on previous context, 
+        # though user upload had 'termID' in one spot and 'TermId' in required list.
+        # Going with 'TermId' as per required_cols check.
+        if not is_valid_term_id(row.get('TermId', row.get('termID'))):
+            print(f"Invalid entry in row {index + 1}: Invalid TermID")
             is_valid = False
+            
         if is_valid:
             valid_records.append(row)
         else:
@@ -451,38 +436,40 @@ def process_registrations(filename, create_students: bool, create_proctors: bool
             rejected_records.append(row)
             print(f"Ignoring row {index + 1} due to invalid entries.")
 
-#    print(f"\nCSV processing complete. Total rows: {len(df)}, Valid rows: {len(valid_records)}, Invalid rows: {invalid_rows_count}")
-
 # --- Rejects File Creation Logic ---
     if rejected_records:
         now = datetime.now()
         timestamp = now.strftime("%Y%m%d_%H%M%S")
         rejects_filename = f"rejects_{timestamp}.csv"
-        # Convert the list of rejected records (which are Pandas Series) back into a DataFrame
-        # using the same columns as the original file
-        rejected_df = pd.DataFrame(rejected_records, columns=df.columns)
+        rejected_df = pd.DataFrame(rejected_records, columns=df_raw.columns)
 
-        # Write the DataFrame to a CSV file, including the header
         try:
             rejected_df.to_csv(rejects_filename, index=False)
             print(f"\nCreated rejects file: **{rejects_filename}** with {len(rejected_records)} rejected records.")
         except Exception as e:
             print(f"\nError writing rejects file: {e}")
             
-    # --- End Rejects File Creation Logic ---
+# --- End Rejects File Creation Logic ---
 
-    print(f"\nCSV processing complete. Total rows: {len(df)}, Valid rows: {len(valid_records)}, Invalid rows: {invalid_rows_count}")
+    print(f"\nCSV processing complete. Total rows: {len(df_raw)}, Valid rows: {len(valid_records)}, Invalid rows: {invalid_rows_count}")
 
     if valid_records:
-        create_groups(valid_records)
+        # CRITICAL CHANGE: Prepare the data ONCE.
+        # This ensures that random passwords generated for students are consistent
+        # between the student account file and the ticket files.
+        enriched_df = prepare_enriched_dataframe(valid_records)
+
+        # Always create groups if we have data (as per previous logic implied)
+        create_groups(enriched_df)
+        
         if create_students:
-            create_student_accounts(valid_records)
+            create_student_accounts(enriched_df)
         if create_proctors:
-            create_proctor_accounts(valid_records)
+            create_proctor_accounts(enriched_df)
         if create_admins:
-            create_admin_accounts(valid_records)
-        if create_tickets:
-            create_tickets()
+            create_admin_accounts(enriched_df, num_admins=2)
+        if create_tickets_bool:
+            create_tickets(enriched_df)
     else:
         print("No valid records to process for account creation.")
 
@@ -509,8 +496,24 @@ def main():
     create_proctors_bool = args.proctors or no_flags_set
     create_admins_bool = args.admins or no_flags_set
     create_tickets_bool = args.tickets or no_flags_set
+    
+    # Check for potential password mismatch scenario
+    if (args.students and not args.tickets) or (args.tickets and not args.students):
+        print("\n************************************************************************************")
+        print("  WARNING: You have selected to create either Student Accounts or Tickets, but not both.")
+        print("  If these files are generated in separate runs, the passwords will NOT match.")
+        print("  It is highly recommended to generate Student Accounts and Tickets together.")
+        print("************************************************************************************\n")
+    
     print (f"Create Students: {create_students_bool}, Proctors: {create_proctors_bool}, Admins: {create_admins_bool}, Tickets: {create_tickets_bool}")
-    process_registrations(args.input, create_students_bool, create_proctors_bool, create_admins_bool, create_tickets_bool)
+    
+    process_registrations(
+        args.input, 
+        create_students_bool, 
+        create_proctors_bool, 
+        create_admins_bool, 
+        create_tickets_bool
+    )
 
 if __name__ == "__main__":
     main()
